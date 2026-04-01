@@ -1,24 +1,30 @@
-import {Router} from 'express'
-
+import { Router } from 'express'
+import {z} from 'zod'
+import { validateBody, validateParams } from '../middleware/validation.ts'
 const router = Router()
 
-router.get('/', (req, res) =>{
-	res.json({message:'habbits'})
+const createHabitSchema = z.object({name: z.string()})
+// Habit-specific routes
+const create
+router.get('/', (req, res) => {
+  res.json({ message: 'Get all habits' })
+})
+const deleteHabitSchema = z.object({id:z.number()})
+router.post('/',validateBody(createHabitSchema), (req, res) => {
+  res.status(201).json({ message: 'Habit created' })
 })
 
-router.get('/:id', (req, res)=>{
-	res.json({message:'got one habbit'})
+// Habit completion routes
+router.post('/:id/complete', (req, res) => {
+  res.json({ message: `Mark habit ${req.params.id} complete` })
 })
 
-router.post('/', (req, res)=>{
-	res.json({message:'created habbit'})
-})
+router.get('/:id/stats', (req, res) => {
+  res.json({ message: `Get stats for habit ${req.params.id}` })
 
-router.delete("/:id", (req, res) =>{
-	res.json({message:"delte habbit"})
 })
-router.post("/:id/complete", (req, res)=>{
-	res.json({message: 'completed habit'})
+router.delete('/:id',  (req, res)=>{
+	res.json({message:'delte habit'})
 })
 
 export default router
