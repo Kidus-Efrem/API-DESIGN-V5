@@ -1,22 +1,14 @@
 import { Router } from 'express'
-
+import { login, register } from '../controllers/authControllers.ts'
+import { validateBody } from '../middleware/validation.ts'
+import { z } from 'zod'
+import { insertUserSchema } from '../db/schema.ts'
+const loginSchema = z.object({
+	email:z.email('Invalid email'),
+	password: z.string().min(1, 'password is required')
+})
 const router = Router()
 
-// Authentication routes
-router.post('/register', (req, res) => {
-  res.status(201).json({ message: 'User registered' })
-})
-
-router.post('/login', (req, res) => {
-  res.json({ message: 'User logged in' })
-})
-
-router.post('/logout', (req, res) => {
-  res.json({ message: 'User logged out' })
-})
-
-router.post('/refresh', (req, res) => {
-  res.json({ message: 'Token refreshed' })
-})
-
+router.post('/register', validateBody(insertUserSchema), register)
+router.post('/login', validateBody(loginSchema), login)
 export default router

@@ -1,3 +1,4 @@
+//@ts-ignore
 import { env as loadEnv } from 'custom-env'
 import { z } from 'zod'
 
@@ -8,7 +9,7 @@ const isDevelopment = process.env.APP_STAGE === 'dev'
 const isTesting = process.env.APP_STAGE === 'test'
 
 if (isDevelopment) {
-  loadEnv()
+  loadEnv('dev')
 } else if (isTesting) {
   loadEnv('test')
 }
