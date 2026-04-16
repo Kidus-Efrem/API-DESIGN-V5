@@ -6,6 +6,7 @@ import {
   timestamp,
   boolean,
   integer,
+  unique
 } from 'drizzle-orm/pg-core'
 import {createInsertSchema, createSelectSchema} from 'drizzle-zod'
 import { relations } from 'drizzle-orm'
@@ -48,6 +49,8 @@ export const entries = pgTable('entries', {
 // Tags table - categorization system
 export const tags = pgTable('tags', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(()=>users.id,{onDelete:'cascade'}).notNull(),
+
   name: varchar('name', { length: 50 }).notNull(),
   color: varchar('color', { length: 7 }).default('#6B7280'), // hex color
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -71,6 +74,7 @@ export const habitTags = pgTable('habit_tags', {
 // Users can have many habits
 export const usersRelations = relations(users, ({ many }) => ({
   habits: many(habits),
+  tags: many(tags)
 }))
 
 // Habits belong to one user, have many entries and tags
@@ -92,8 +96,12 @@ export const entriesRelations = relations(entries, ({ one }) => ({
 }))
 
 // Tags can be on many habits
-export const tagsRelations = relations(tags, ({ many }) => ({
+export const tagsRelations = relations(tags, ({ one, many }) => ({
   habitTags: many(habitTags),
+  user: one(users, {
+    fields: [tags.userId],
+    references: [users.id],
+  }),
 }))
 
 // Junction table relations
