@@ -6,12 +6,12 @@ import {
   timestamp,
   boolean,
   integer,
-  unique
+  unique,
 } from 'drizzle-orm/pg-core'
-import {createInsertSchema, createSelectSchema} from 'drizzle-zod'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { relations } from 'drizzle-orm'
 
-// Users table - core authentication and profile
+// ================= USERS =================
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -22,7 +22,8 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
-// Habits table - core habit definitions
+
+// ================= HABITS =================
 export const habits = pgTable('habits', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
@@ -30,58 +31,66 @@ export const habits = pgTable('habits', {
     .notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
-  frequency: varchar('frequency', { length: 20 }).notNull(), // daily, weekly, monthly
-  targetCount: integer('target_count').default(1), // how many times per frequency
+  frequency: varchar('frequency', { length: 20 }).notNull(),
+  targetCount: integer('target_count').default(1),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
-// Habit entries - individual completions
+
+// ================= ENTRIES =================
 export const entries = pgTable('entries', {
   id: uuid('id').primaryKey().defaultRandom(),
   habitId: uuid('habit_id')
     .references(() => habits.id, { onDelete: 'cascade' })
     .notNull(),
-  completion_date: timestamp('completion_date').defaultNow().notNull(),
+  completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
-// Tags table - categorization system
-export const tags = pgTable('tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(()=>users.id,{onDelete:'cascade'}).notNull(),
 
-  name: varchar('name', { length: 50 }).notNull(),
-  color: varchar('color', { length: 7 }).default('#6B7280'), // hex color
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table)=>({
-  userTagUnique: unique().on(table.userId,table.name)
+// ================= TAGS =================
+export const tags = pgTable(
+  'tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    name: varchar('name', { length: 50 }).notNull(),
+    color: varchar('color', { length: 7 }).default('#6B7280').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userTagUnique: unique().on(table.userId, table.name),
+  })
+)
 
-}))
-// Junction table for many-to-many relationship
-export const habitTags = pgTable('habit_tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  habitId: uuid('habit_id')
-    .references(() => habits.id, { onDelete: 'cascade' })
-    .notNull(),
-  tagId: uuid('tag_id')
-    .references(() => tags.id, { onDelete: 'cascade' })
-    .notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table)=>({
-  uiqueHabitTag: unique().on(table.habitId, table.tagId)
-}))
+// ================= HABIT TAGS =================
+export const habitTags = pgTable(
+  'habit_tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    habitId: uuid('habit_id')
+      .references(() => habits.id, { onDelete: 'cascade' })
+      .notNull(),
+    tagId: uuid('tag_id')
+      .references(() => tags.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueHabitTag: unique().on(table.habitId, table.tagId),
+  })
+)
 
-
-
-// Users can have many habits
+// ================= RELATIONS =================
 export const usersRelations = relations(users, ({ many }) => ({
   habits: many(habits),
-  tags: many(tags)
+  tags: many(tags),
 }))
 
-// Habits belong to one user, have many entries and tags
 export const habitsRelations = relations(habits, ({ one, many }) => ({
   user: one(users, {
     fields: [habits.userId],
@@ -91,7 +100,6 @@ export const habitsRelations = relations(habits, ({ one, many }) => ({
   habitTags: many(habitTags),
 }))
 
-// Entries belong to one habit
 export const entriesRelations = relations(entries, ({ one }) => ({
   habit: one(habits, {
     fields: [entries.habitId],
@@ -99,16 +107,14 @@ export const entriesRelations = relations(entries, ({ one }) => ({
   }),
 }))
 
-// Tags can be on many habits
 export const tagsRelations = relations(tags, ({ one, many }) => ({
-  habitTags: many(habitTags),
   user: one(users, {
     fields: [tags.userId],
     references: [users.id],
   }),
+  habitTags: many(habitTags),
 }))
 
-// Junction table relations
 export const habitTagsRelations = relations(habitTags, ({ one }) => ({
   habit: one(habits, {
     fields: [habitTags.habitId],
@@ -120,15 +126,13 @@ export const habitTagsRelations = relations(habitTags, ({ one }) => ({
   }),
 }))
 
+// ================= TYPES =================
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type Habit = typeof habits.$inferSelect
 export type Entry = typeof entries.$inferSelect
 export type Tag = typeof tags.$inferSelect
 export type HabitTag = typeof habitTags.$inferSelect
-
-
-
 
 export const insertUserSchema = createInsertSchema(users)
 export const selectUserSchema = createSelectSchema(users)
