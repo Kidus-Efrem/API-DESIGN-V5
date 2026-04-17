@@ -55,7 +55,10 @@ export const tags = pgTable('tags', {
   color: varchar('color', { length: 7 }).default('#6B7280'), // hex color
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table)=>({
+  userTagUnique: unique().on(table.userId,table.name)
+
+}))
 // Junction table for many-to-many relationship
 export const habitTags = pgTable('habit_tags', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -66,7 +69,9 @@ export const habitTags = pgTable('habit_tags', {
     .references(() => tags.id, { onDelete: 'cascade' })
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table)=>({
+  uiqueHabitTag: unique().on(table.habitId, table.tagId)
+}))
 
 
 
