@@ -103,9 +103,7 @@ export const habitDailyStats = pgTable (
   id: uuid('id').primaryKey().defaultRandom(),
   habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
   date:timestamp('date', {mode:'date'}).notNull(),
-  completionCount:integer('completion_count').default(0).notNull(),
-  
-  completed: boolean('completed').default(false).notNull()},
+  completionCount:integer('completion_count').default(0).notNull()},
   (table)=>({
     uniqueHabitDailyTag: unique().on(table.habitId, table.date),
     habitDateIndex: index('habit_daily_stats_habit_date_idx').on(
@@ -121,7 +119,7 @@ export const habitReminders = pgTable(
   'habit_reminders',{
     id: uuid('id').primaryKey().defaultRandom(),
     habitId: uuid('habit_id').references(()=>habits.id, {onDelete: 'cascade'}).notNull(),
-    time: varchar('time', {length: 5}).notNull(),
+    time: integer('time').notNull(),
     daysOfWeek: integer('days_of_week').array().default([]).notNull(),
     enabled:boolean('enabled').default(true).notNull()
 
