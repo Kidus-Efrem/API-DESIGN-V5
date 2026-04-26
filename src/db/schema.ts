@@ -1,6 +1,7 @@
 import {
   pgTable,
   uuid,
+  index,
   varchar,
   text,
   timestamp,
@@ -35,6 +36,8 @@ export const habits = pgTable('habits', {
   description: text('description'),
   frequency: varchar('frequency', { length: 20 }).notNull(),
   targetCount: integer('target_count').default(1),
+  currentStreak: integer('current_streak').default(0).notNull(),
+  longestStreak:integer('longest_streak').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -49,7 +52,15 @@ export const entries = pgTable('entries', {
   completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+},
+(table)=>({
+  habitDateIndex: index("entries_habit_date_idx").on(
+    table.habitId,
+    table.completionDate
+  )
 })
+
+)
 
 // ================= TAGS =================
 export const tags = pgTable(
@@ -86,19 +97,37 @@ export const habitTags = pgTable(
     uniqueHabitTag: unique().on(table.habitId, table.tagId),
   })
 )
-
+// ========================  habit daily statas==========
 export const habitDailyStats = pgTable (
   'habit_daily_stats',{
   id: uuid('id').primaryKey().defaultRandom(),
   habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
-  date:date('date').notNull(),
+  date:timestamp('date', {mode:'date'}).notNull(),
   completionCount:integer('completion_count').default(0).notNull(),
-  completionPercent:integer('completion_percent').default(0).notNull(),
+  
   completed: boolean('completed').default(false).notNull()},
   (table)=>({
-    uniqueHabitDailyTag: unique().on(table.habitId, table.date)
-  })
+    uniqueHabitDailyTag: unique().on(table.habitId, table.date),
+    habitDateIndex: index('habit_daily_stats_habit_date_idx').on(
+      table.habitId,
+      table.date
+    )
+  }),
+
 )
+
+// ========================habit reminders==========
+export const habitReminders = pgTable(
+  'habit_reminders',{
+    id: uuid('id').primaryKey().defaultRandom(),
+    habitId: uuid('habit_id').references(()=>habits.id, {onDelete: 'cascade'}).notNull(),
+    time: varchar('time', {length: 5}).notNull(),
+    daysOfWeek: integer('days_of_week').array().default([]).notNull(),
+    enabled:boolean('enabled').default(true).notNull()
+
+  }
+)
+
 
 // ================= RELATIONS =================
 export const usersRelations = relations(users, ({ many }) => ({
@@ -113,6 +142,7 @@ export const habitsRelations = relations(habits, ({ one, many }) => ({
   }),
   entries: many(entries),
   habitTags: many(habitTags),
+  habitReminders: many(habitReminders)
 }))
 
 export const entriesRelations = relations(entries, ({ one }) => ({
@@ -140,6 +170,7 @@ export const habitTagsRelations = relations(habitTags, ({ one }) => ({
     references: [tags.id],
   }),
 }))
+
 
 
 // ================= TYPES =================
