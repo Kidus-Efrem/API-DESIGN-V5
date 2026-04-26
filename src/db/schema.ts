@@ -105,7 +105,8 @@ export const habitDailyStats = pgTable (
   habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
   date:timestamp('date', {mode:'date'}).notNull(),
   completionCount:integer('completion_count').default(0).notNull(),
-  targetCount : integer('target_count').references(()=>habits.targetCount).notNull()
+  targetCount : integer('target_count').references(()=>habits.targetCount).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
 },
   (table)=>({
     uniqueHabitDailyTag: unique().on(table.habitId, table.date),
@@ -125,10 +126,13 @@ export const habitReminders = pgTable(
     time: integer('time').notNull(),
     daysOfWeek: integer('days_of_week').array().default([]).notNull(),
     enabled:boolean('enabled').default(true).notNull(),
-    frequency: varchar('frequency', {length: 20 }).notNull()
+    frequency: varchar('frequency', {length: 20 }).notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
 
-
-  }
+  },
+  (table)=>({
+    habitRemindersIndex: index('habit_reminder_idx').on(table.habitId , table.enabled,table.time)
+  })
 )
 
 
