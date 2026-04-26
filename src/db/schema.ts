@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { relations } from 'drizzle-orm'
-import { table } from 'console'
+import { count, table } from 'console'
 
 // ================= USERS =================
 export const users = pgTable('users', {
@@ -51,6 +51,7 @@ export const entries = pgTable('entries', {
     .notNull(),
   completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
+  count: integer('count').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 },
 (table)=>({
@@ -103,7 +104,9 @@ export const habitDailyStats = pgTable (
   id: uuid('id').primaryKey().defaultRandom(),
   habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
   date:timestamp('date', {mode:'date'}).notNull(),
-  completionCount:integer('completion_count').default(0).notNull()},
+  completionCount:integer('completion_count').default(0).notNull(),
+  targetCount : integer('target_count').references(()=>habits.targetCount).notNull()
+},
   (table)=>({
     uniqueHabitDailyTag: unique().on(table.habitId, table.date),
     habitDateIndex: index('habit_daily_stats_habit_date_idx').on(
@@ -121,7 +124,9 @@ export const habitReminders = pgTable(
     habitId: uuid('habit_id').references(()=>habits.id, {onDelete: 'cascade'}).notNull(),
     time: integer('time').notNull(),
     daysOfWeek: integer('days_of_week').array().default([]).notNull(),
-    enabled:boolean('enabled').default(true).notNull()
+    enabled:boolean('enabled').default(true).notNull(),
+    frequency: varchar('frequency', {length: 20 }).notNull()
+
 
   }
 )
@@ -140,7 +145,9 @@ export const habitsRelations = relations(habits, ({ one, many }) => ({
   }),
   entries: many(entries),
   habitTags: many(habitTags),
-  habitReminders: many(habitReminders)
+  habitReminders: many(habitReminders),
+  dailyStats: many(habitDailyStats),
+
 }))
 
 export const entriesRelations = relations(entries, ({ one }) => ({
@@ -168,6 +175,20 @@ export const habitTagsRelations = relations(habitTags, ({ one }) => ({
     references: [tags.id],
   }),
 }))
+export const habitDailyStatsRelations = relations(habitDailyStats, ({one})=>({
+  habit: one(habits, {
+    fields: [habitDailyStats.habitId],
+    references: [habits.id]
+  })
+}))
+export const habitRemindersRelations = relations(
+  habitReminders, ({one}) =>({
+    habit: one(habits,{
+      fields:[habitReminders.habitId],
+      references:[habits.id]
+    })
+  })
+)
 
 
 
@@ -178,6 +199,8 @@ export type Habit = typeof habits.$inferSelect
 export type Entry = typeof entries.$inferSelect
 export type Tag = typeof tags.$inferSelect
 export type HabitTag = typeof habitTags.$inferSelect
+export type HabitDailyStat = typeof habitDailyStats.$inferSelect
+export type habitReminder = typeof habitReminders.$inferSelect
 
 export const insertUserSchema = createInsertSchema(users)
 export const selectUserSchema = createSelectSchema(users)
