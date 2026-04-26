@@ -7,9 +7,11 @@ import {
   boolean,
   integer,
   unique,
+  date
 } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { relations } from 'drizzle-orm'
+import { table } from 'console'
 
 // ================= USERS =================
 export const users = pgTable('users', {
@@ -85,6 +87,19 @@ export const habitTags = pgTable(
   })
 )
 
+export const habitDailyStats = pgTable (
+  'habit_daily_stats',{
+  id: uuid('id').primaryKey().defaultRandom(),
+  habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
+  date:date('date').notNull(),
+  completionCount:integer('completion_count').default(0).notNull(),
+  completionPercent:integer('completion_percent').default(0).notNull(),
+  completed: boolean('completed').default(false).notNull()},
+  (table)=>({
+    uniqueHabitDailyTag: unique().on(table.habitId, table.date)
+  })
+)
+
 // ================= RELATIONS =================
 export const usersRelations = relations(users, ({ many }) => ({
   habits: many(habits),
@@ -125,6 +140,7 @@ export const habitTagsRelations = relations(habitTags, ({ one }) => ({
     references: [tags.id],
   }),
 }))
+
 
 // ================= TYPES =================
 export type User = typeof users.$inferSelect
