@@ -5,6 +5,7 @@ import {habits, entries, habitTags, tags} from '../db/schema.ts'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { error } from 'console'
 import { DefaultDeserializer } from 'v8'
+import { AppError } from '../utils/AppError.ts'
 
 export const createHabit = async(req: AuthenticatedRequest ,res : Response) =>{
 try{
@@ -31,7 +32,7 @@ try{
 				)
 			})
 			if (userTags.length != tagIds){
-				throw new Error('INVALID_TAG_IDS')
+				throw new AppError('INVALID_TAG_IDS', 400)
 			}
 			const habitTagValues = tagIds.map((tagId: string) =>({
 				habitId: newHabit.id,
@@ -48,9 +49,9 @@ try{
 		habit: result
 	})
 }catch (e){
-	if (e instanceof Error && e.message ==='INVALID_TAG_IDS'){
-		return res.status(400).json({
-			error:'One or more tags do not belong to this user'
+	if (e instanceof AppError ){
+		return res.status(e.statusCode).json({
+			error:e.message
 		})
 
 	}
@@ -84,7 +85,7 @@ export const getUserHabits = async(req: AuthenticatedRequest , res: Response)=>{
 			habitTags:undefined
 		}))
 		res.json({
-			habit:habitWithTags
+			habits:habitWithTags
 		})
 	}catch(e){
 		console.error("get habits error", e)
