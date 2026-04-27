@@ -8,11 +8,18 @@ import {
   boolean,
   integer,
   unique,
-  date
+  date,
+  pgEnum,
 } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { relations } from 'drizzle-orm'
 import { count, table } from 'console'
+
+export const habitFrequencyEnum = pgEnum('habit_frequency', [
+  'daily',
+  'weekly',
+  'monthly',
+])
 
 // ================= USERS =================
 export const users = pgTable('users', {
@@ -34,7 +41,8 @@ export const habits = pgTable('habits', {
     .notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
-  frequency: varchar('frequency', { length: 20 }).notNull(),
+  frequency: habitFrequencyEnum('frequency').notNull(),
+  frequencyInterval: integer('frequency_interval').default(1).notNull(),
   targetCount: integer('target_count').default(1).notNull(),
   currentStreak: integer('current_streak').default(0).notNull(),
   longestStreak:integer('longest_streak').default(0).notNull(),
@@ -107,7 +115,7 @@ export const habitDailyStats = pgTable (
   completionCount:integer('completion_count').default(0).notNull(),
   targetCount : integer('target_count').notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timeStamp('create_at').defaultNow().notNull()'
+  createdAt: timestamp('create_at').defaultNow().notNull()
 },
   (table)=>({
     uniqueHabitDailyTag: unique().on(table.habitId, table.date),
@@ -128,8 +136,11 @@ export const habitReminders = pgTable(
     timeZone: varchar('time_zone', {length: 50}).notNull(),
     daysOfWeek: integer('days_of_week').array().default([]).notNull(),
     enabled:boolean('enabled').default(true).notNull(),
-    frequency: varchar('frequency', {length: 20 }).notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull()
+    frequency: habitFrequencyEnum('frequency').notNull(),
+    frequencyInterval: integer('frequency_interval').default(1).notNull(),
+
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull()
 
   },
   (table)=>({
@@ -206,7 +217,7 @@ export type Entry = typeof entries.$inferSelect
 export type Tag = typeof tags.$inferSelect
 export type HabitTag = typeof habitTags.$inferSelect
 export type HabitDailyStat = typeof habitDailyStats.$inferSelect
-export type habitReminder = typeof habitReminders.$inferSelect
+export type HabitReminder = typeof habitReminders.$inferSelect
 
 export const insertUserSchema = createInsertSchema(users)
 export const selectUserSchema = createSelectSchema(users)

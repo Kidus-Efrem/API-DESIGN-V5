@@ -9,7 +9,8 @@ import { DefaultDeserializer } from 'v8'
 export const createHabit = async(req: AuthenticatedRequest ,res : Response) =>{
 try{
 
-	const {name , description , frequency, targetCount, tagIds} = req.body
+	const {name , description , frequency,frequencyInterval,
+		 targetCount, tagIds} = req.body
 	const userId = req.user!.id
 	const result  = await db.transaction(async (tx) =>{
 		const [newHabit] = await tx
@@ -18,10 +19,20 @@ try{
 			userId,
 			name,
 			description,
+			frequencyInterval,
 			frequency,
 			targetCount
 		}).returning()
 		if (tagIds && tagIds.length > 0){
+			const userTags = await tx.query.tags.findMany({
+				where: and(
+					inArray(tags.id, tagIds)
+					,eq(tags.userId, userId)
+				)
+			})
+			if (userTags.length != tagIds){
+				throw new Error('INVALID_TAG_IDS')
+			}
 			const habitTagValues = tagIds.map((tagId: string) =>({
 				habitId: newHabit.id,
 				tagId
@@ -37,6 +48,12 @@ try{
 		habit: result
 	})
 }catch (e){
+	if (e instanceof Error && e.message ==='INVALID_TAG_IDS'){
+		return res.status(400).json({
+			error:'One or more tags do not belong to this user'
+		})
+
+	}
 
 	console.error("create habit error", e)
 	res.status(500).json({"error":"Failed to create habit" })
