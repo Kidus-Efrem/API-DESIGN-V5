@@ -51,7 +51,7 @@ export const entries = pgTable('entries', {
     .notNull(),
   completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
-  count: integer('count').notNull().default(0),
+  count: integer('count').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 },
 (table)=>({
@@ -105,7 +105,7 @@ export const habitDailyStats = pgTable (
   habitId: uuid('habit_id').references(()=>habits.id, {onDelete:'cascade'}).notNull(),
   date:timestamp('date', {mode:'date'}).notNull(),
   completionCount:integer('completion_count').default(0).notNull(),
-  targetCount : integer('target_count').references(()=>habits.targetCount).notNull(),
+  targetCount : integer('target_count').notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 },
   (table)=>({
@@ -123,7 +123,8 @@ export const habitReminders = pgTable(
   'habit_reminders',{
     id: uuid('id').primaryKey().defaultRandom(),
     habitId: uuid('habit_id').references(()=>habits.id, {onDelete: 'cascade'}).notNull(),
-    time: integer('time').notNull(),
+    timeMinutes: integer('time_minutes').notNull(),
+    timeZone: varchar('time_zone', {length: 50}).notNull(),
     daysOfWeek: integer('days_of_week').array().default([]).notNull(),
     enabled:boolean('enabled').default(true).notNull(),
     frequency: varchar('frequency', {length: 20 }).notNull(),
@@ -131,7 +132,7 @@ export const habitReminders = pgTable(
 
   },
   (table)=>({
-    habitRemindersIndex: index('habit_reminder_idx').on(table.habitId , table.enabled,table.time)
+    habitRemindersIndex: index('habit_reminder_idx').on(table.habitId , table.enabled,table.timeMinutes)
   })
 )
 
