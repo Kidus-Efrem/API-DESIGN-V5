@@ -35,7 +35,7 @@ export const habits = pgTable('habits', {
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
   frequency: varchar('frequency', { length: 20 }).notNull(),
-  targetCount: integer('target_count').default(1),
+  targetCount: integer('target_count').default(1).notNull(),
   currentStreak: integer('current_streak').default(0).notNull(),
   longestStreak:integer('longest_streak').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
@@ -106,7 +106,8 @@ export const habitDailyStats = pgTable (
   date:timestamp('date', {mode:'date'}).notNull(),
   completionCount:integer('completion_count').default(0).notNull(),
   targetCount : integer('target_count').notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull()
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timeStamp('create_at').defaultNow().notNull()'
 },
   (table)=>({
     uniqueHabitDailyTag: unique().on(table.habitId, table.date),
