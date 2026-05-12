@@ -1,164 +1,286 @@
-import type {Response} from 'express'
-import  type {AuthenticatedRequest} from '../middleware/auth.ts'
-import {db} from '../db/connections.ts'
-import {habits, entries, habitTags, tags} from '../db/schema.ts'
-import { eq, and, desc, inArray } from 'drizzle-orm'
-import { error } from 'console'
-import { DefaultDeserializer } from 'v8'
+import type { Response } from 'express'
+import type { AuthenticatedRequest } from '../middleware/auth.ts'
+
+import { db } from '../db/connections.ts'
+
+import {
+  habits,
+  habitTags,
+  tags,
+} from '../db/schema.ts'
+
+import {
+  eq,
+  and,
+  desc,
+  inArray,
+} from 'drizzle-orm'
+
 import { AppError } from '../utils/AppError.ts'
 
-export const createHabit = async(req: AuthenticatedRequest ,res : Response) =>{
-try{
+// ================= CREATE HABIT =================
+export const createHabit = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const {
+      name,
+      description,
+      frequency,
+      frequencyInterval,
+      targetCount,
+      tagIds,
+    } = req.body
 
-	const {name , description , frequency,frequencyInterval,
-		 targetCount, tagIds} = req.body
-	const userId = req.user!.id
-	const result  = await db.transaction(async (tx) =>{
-		const [newHabit] = await tx
-		.insert(habits)
-		.values({
-			userId,
-			name,
-			description,
-			frequencyInterval,
-			frequency,
-			targetCount
-		}).returning()
-		if (tagIds && tagIds.length > 0){
-			const userTags = await tx.query.tags.findMany({
-				where: and(
-					inArray(tags.id, tagIds)
-					,eq(tags.userId, userId)
-				)
-			})
-			if (userTags.length != tagIds){
-				throw new AppError('INVALID_TAG_IDS', 400)
-			}
-			const habitTagValues = tagIds.map((tagId: string) =>({
-				habitId: newHabit.id,
-				tagId
-			}))
-			await tx.insert(habitTags).values(habitTagValues)
+    const userId = req.user!.id
 
-		}
-		return newHabit
-	})
+    const result = await db.transaction(async (tx) => {
+      // Verify all tag IDs belong to user
+      if (tagIds && tagIds.length > 0) {
+        const userTags = await tx.query.tags.findMany({
+          where: and(
+            inArray(tags.id, tagIds),
+            eq(tags.userId, userId)
+          ),
+        })
 
-	res.status(201).json({
-		message:"Habit Created",
-		habit: result
-	})
-}catch (e){
-	if (e instanceof AppError ){
-		return res.status(e.statusCode).json({
-			error:e.message
-		})
+        if (userTags.length !== tagIds.length) {
+          throw new AppError('INVALID_TAG_IDS', 400)
+        }
+      }
 
-	}
+      // Create habit
+      const [newHabit] = await tx
+        .insert(habits)
+        .values({
+          userId,
+          name,
+          description,
+          frequency,
+          frequencyInterval,
+          targetCount,
+        })
+        .returning()
 
-	console.error("create habit error", e)
-	res.status(500).json({"error":"Failed to create habit" })
+      // Create habit-tag relationships
+      if (tagIds && tagIds.length > 0) {
+        const habitTagValues = tagIds.map(
+          (tagId: string) => ({
+            habitId: newHabit.id,
+            tagId,
+          })
+        )
 
-}
-}
+        await tx
+          .insert(habitTags)
+          .values(habitTagValues)
+      }
 
-export const getUserHabits = async(req: AuthenticatedRequest , res: Response)=>{
-	try{
-		const userHabitsWithTags = await db.query.habits.findMany({
-			where: eq(habits.userId, req.user!.id),
-			with: {
-				habitTags:{
-					with:{
-						tag: true,
+      return newHabit
+    })
 
-					}
-				}
-			},
-			orderBy: [desc(habits.createdAt)]
+    res.status(201).json({
+      message: 'Habit created successfully',
+      habit: result,
+    })
+  } catch (e) {
+    if (e instanceof AppError) {
+      return res.status(e.statusCode).json({
+        error: e.message,
+      })
+    }
 
+    console.error('create habit error:', e)
 
-		})
-
-		const habitWithTags = userHabitsWithTags.map(habit=>({
-			...habit,
-			tags:habit.habitTags.map((ht)=>ht.tag),
-			habitTags:undefined
-		}))
-		res.json({
-			habits:habitWithTags
-		})
-	}catch(e){
-		console.error("get habits error", e)
-		res.status(500).json({"error":"Failed to fetch habit" })
-
-	}
+    res.status(500).json({
+      error: 'Failed to create habit',
+    })
+  }
 }
 
-export const updateHabit = async(req: AuthenticatedRequest, res: Response)=>{
-	try{
-		const id = req.params.id
-		const {tagIds, ...updates} = req.body
+// ================= GET USER HABITS =================
+export const getUserHabits = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const userHabitsWithTags =
+      await db.query.habits.findMany({
+        where: eq(habits.userId, req.user!.id),
 
-		const result  = await db.transaction(async (tx)=>{
-		const [updateHabit] = await tx
-		.update(habits)
-		.set({...updates, updateAt:new Date()})
-		.where(and(eq(habits.id,id), eq(habits.userId, req.user!.id))).returning()
+        with: {
+          habitTags: {
+            with: {
+              tag: true,
+            },
+          },
+        },
 
+        orderBy: [desc(habits.createdAt)],
+      })
 
-		if (!updateHabit){
-			throw new Error('Habit not found')
-		}
+    const habitsWithTags =
+      userHabitsWithTags.map((habit) => ({
+        ...habit,
 
-		if(tagIds !== undefined){
-			await tx.delete(habitTags).where(eq(habitTags.habitId, req.params.id))
+        tags: habit.habitTags.map(
+          (ht) => ht.tag
+        ),
 
-		}
+        habitTags: undefined,
+      }))
 
-		if (tagIds && tagIds.length > 0){
-			const habitTagsvalues = tagIds.map((tagId: string)=>({
-				habitTags: req.params.id,
-				tagId
-			}))
-			await tx.insert(habitTags).values(habitTagsvalues)
-		}
-		return updateHabit
-		})
+    res.json({
+      habits: habitsWithTags,
+    })
+  } catch (e) {
+    console.error('get habits error:', e)
 
-		res.json({
-			message: 'habit was updated',
-			habit: result
-		})
-	}catch(e: any){
-		if (e.message === 'Habit not found'){
-		return res.status(404).json({ error: 'Habit not found' })
-		}
-		console.error('update habit error :', e)
-		res.status(500).json({error: 'Failed to update habit'})
-	}
+    res.status(500).json({
+      error: 'Failed to fetch habits',
+    })
+  }
 }
 
-export const deleteHabit = async(req: AuthenticatedRequest, res : Response) =>{
-	try{
-		const {id} = req.params
-		const userId = req.user!.id
+// ================= UPDATE HABIT =================
+export const updateHabit = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const { id } = req.params
+    const userId = req.user!.id
 
-		const [deleteHabit] = await db
-		.delete(habits)
-		.where(and(eq(habits.id, id), eq(habits.userId, userId)))
-		.returning()
+    const { tagIds, ...updates } = req.body
 
-		if (!deleteHabit){
-			return res.status(404).json({error: "Habit not found"})
-		}
+    const result = await db.transaction(async (tx) => {
+      // Verify habit belongs to user
+      const existingHabit =
+        await tx.query.habits.findFirst({
+          where: and(
+            eq(habits.id, id),
+            eq(habits.userId, userId)
+          ),
+        })
 
-		res.json({
-			message: "Habit delted successfully"
-		})
+      if (!existingHabit) {
+        throw new AppError(
+          'Habit not found',
+          404
+        )
+      }
 
-	}catch(e){
+      // Verify tags belong to user
+      if (tagIds && tagIds.length > 0) {
+        const userTags = await tx.query.tags.findMany({
+          where: and(
+            inArray(tags.id, tagIds),
+            eq(tags.userId, userId)
+          ),
+        })
 
-		console.error("Delete habit error : ", e)
-		res.status(500).json({error: "Failed to delete habit"})
-	}
+        if (userTags.length !== tagIds.length) {
+          throw new AppError(
+            'INVALID_TAG_IDS',
+            400
+          )
+        }
+      }
+
+      // Update habit
+      const [updatedHabit] = await tx
+        .update(habits)
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(eq(habits.id, id))
+        .returning()
+
+      // Replace tags if provided
+      if (tagIds !== undefined) {
+        // Remove old tags
+        await tx
+          .delete(habitTags)
+          .where(
+            eq(habitTags.habitId, id)
+          )
+
+        // Insert new tags
+        if (tagIds.length > 0) {
+          const habitTagValues = tagIds.map(
+            (tagId: string) => ({
+              habitId: id,
+              tagId,
+            })
+          )
+
+          await tx
+            .insert(habitTags)
+            .values(habitTagValues)
+        }
+      }
+
+      return updatedHabit
+    })
+
+    res.json({
+      message: 'Habit updated successfully',
+      habit: result,
+    })
+  } catch (e) {
+    if (e instanceof AppError) {
+      return res.status(e.statusCode).json({
+        error: e.message,
+      })
+    }
+
+    console.error('update habit error:', e)
+
+    res.status(500).json({
+      error: 'Failed to update habit',
+    })
+  }
+}
+
+// ================= DELETE HABIT =================
+export const deleteHabit = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const { id } = req.params
+    const userId = req.user!.id
+
+    const [deletedHabit] = await db
+      .delete(habits)
+      .where(
+        and(
+          eq(habits.id, id),
+          eq(habits.userId, userId)
+        )
+      )
+      .returning()
+
+    if (!deletedHabit) {
+      return res.status(404).json({
+        error: 'Habit not found',
+      })
+    }
+
+    res.json({
+      message:
+        'Habit deleted successfully',
+    })
+  } catch (e) {
+    console.error(
+      'delete habit error:',
+      e
+    )
+
+    res.status(500).json({
+      error: 'Failed to delete habit',
+    })
+  }
 }
