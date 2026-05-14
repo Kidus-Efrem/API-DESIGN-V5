@@ -60,12 +60,19 @@ export const entries = pgTable('entries', {
   completionDate: timestamp('completion_date').defaultNow().notNull(),
   note: text('note'),
   count: integer('count').notNull().default(1),
+  date:timestamp('date' ,{mode: 'date'}).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
 },
 (table)=>({
   habitDateIndex: index("entries_habit_date_idx").on(
     table.habitId,
-    table.completionDate
+    table.date
+  )
+  ,
+  uniqueHabitDate: unique().on(
+    table.habitId,
+    table.date
   )
 })
 
