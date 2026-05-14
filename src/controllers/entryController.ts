@@ -62,11 +62,35 @@ export const createEntry = async (
 		today.setHours( 0 , 0 , 0 , 0)
 
 
-		const existingHabitEntry = await.tx.query.entries.findFirst({
+		const existingEntry = await tx.query.entries.findFirst({
 			where: and(
 				eq(entries.habitId, habitId),
 				eq(entries.completionDate, today)
 			)
+
 		})
+
+		let updatedCount = incrementBy
+		let previousCount = 0
+
+		if (existingEntry){
+			previousCount = existingEntry.count
+			updatedCount  = existingEntry.count + incrementBy
+
+			await tx.update(entries).set({
+				count:updatedCount
+			}).where(eq(entries.id, existingEntry.id))
+		}
+
+		else{
+			 await tx
+            .insert(entries)
+            .values({
+              habitId,
+              completionDate: today,
+              count: incrementBy
+            })
+		}
+
 
 }
