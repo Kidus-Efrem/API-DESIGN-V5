@@ -1,35 +1,125 @@
 import { Router } from 'express'
-import {z} from 'zod'
-import { validateBody, validateParams } from '../middleware/validation.ts'
-import { authenticateToken } from '../middleware/auth.ts'
-import { createHabit, deleteHabit, getUserHabits, updateHabit } from '../controllers/habitController.ts'
+import { z } from 'zod'
+
+import {
+  validateBody,
+  validateParams,
+} from '../middleware/validation.ts'
+
+import {
+  authenticateToken,
+} from '../middleware/auth.ts'
+
+import {
+  createHabit,
+  deleteHabit,
+  getUserHabits,
+  updateHabit,
+} from '../controllers/habitController.ts'
+
 const router = Router()
 
+/* =========================================================
+   PARAM SCHEMAS
+========================================================= */
+
+const habitIdParamSchema = z.object({
+  id: z.uuid(),
+})
+
+/* =========================================================
+   CREATE HABIT SCHEMA
+========================================================= */
+
 const createHabitSchema = z.object({
-  name: z.string(),
-  description : z.string().optional(),
-  frequency: z.string(),
-  targetCount: z.number(),
-  tagIds: z.array(z.string()).optional()
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(100, 'Name too long'),
 
+  description: z
+    .string()
+    .max(1000, 'Description too long')
+    .optional(),
+
+  frequency: z.enum([
+    'daily',
+    'weekly',
+    'monthly',
+  ]),
+
+  frequencyInterval: z
+    .number()
+    .int()
+    .positive()
+    .optional(),
+
+  targetCount: z
+    .number()
+    .int()
+    .positive()
+    .optional(),
+
+  tagIds: z
+    .array(z.uuid())
+    .optional(),
 })
-// Habit-specific routes
 
-router.use( authenticateToken)
-router.get('/', getUserHabits)
-const deleteHabitSchema = z.object({id:z.number()})
-router.post('/',validateBody(createHabitSchema), createHabit)
+/* =========================================================
+   UPDATE HABIT SCHEMA
+========================================================= */
 
-// Habit completion routes
-router.post('/:id/complete', (req, res) => {
-  res.json({ message: `Mark habit ${req.params.id} complete` })
-})
-router.patch('/:id', updateHabit)
+const updateHabitSchema =
+  createHabitSchema.partial()
 
-router.get('/:id/stats', (req, res) => {
-  res.json({ message: `Get stats for habit ${req.params.id}` })
+/* =========================================================
+   AUTH MIDDLEWARE
+========================================================= */
 
-})
-router.delete('/:id', deleteHabit)
+router.use(authenticateToken)
+
+/* =========================================================
+   ROUTES
+========================================================= */
+
+/* -------------------------
+   GET USER HABITS
+------------------------- */
+
+router.get(
+  '/',
+  getUserHabits
+)
+
+/* -------------------------
+   CREATE HABIT
+------------------------- */
+
+router.post(
+  '/',
+  validateBody(createHabitSchema),
+  createHabit
+)
+
+/* -------------------------
+   UPDATE HABIT
+------------------------- */
+
+router.patch(
+  '/:id',
+  validateParams(habitIdParamSchema),
+  validateBody(updateHabitSchema),
+  updateHabit
+)
+
+/* -------------------------
+   DELETE HABIT
+------------------------- */
+
+router.delete(
+  '/:id',
+  validateParams(habitIdParamSchema),
+  deleteHabit
+)
 
 export default router

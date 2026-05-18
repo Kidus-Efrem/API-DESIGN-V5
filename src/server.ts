@@ -1,12 +1,17 @@
 import express from 'express'
+
 import authRoutes from './routes/authRoutes.ts'
 import habitRoutes from './routes/habitRoutes.ts'
 import userRoutes from './routes/userRoutes.ts'
-// import tagRoutes from './routes/tagRoutes.ts'
+import tagRoutes from './routes/tagRoutes.ts'
+import entryRoutes from './routes/entryRoutes.ts'
+import reminderRoutes from './routes/reminderRoutes.ts'
 
 const app = express()
+
 app.use(express.json())
-// Health check endpoint (direct on app)
+
+// ================= HEALTH CHECK =================
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -15,11 +20,17 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Mount routers with base paths
-app.use('/api/auth', authRoutes)    // All auth routes prefixed with /api/auth
-app.use('/api/users', userRoutes)   // All user routes prefixed with /api/users
-app.use('/api/habits', habitRoutes) // All habit routes prefixed with /api/habits
-// app.use('/api/tags', tagRoutes)     // All tag routes prefixed with /api/tags
+// ================= ROUTES =================
+app.use('/api/auth', authRoutes)
+
+app.use('/api/users', userRoutes)
+
+app.use('/api/habits', habitRoutes)
+
+app.use('/api/tags', tagRoutes)
+
+app.use('/api/entries', entryRoutes)
+
+app.use('/api/reminders', reminderRoutes)
 
 export { app }
-// export default app
