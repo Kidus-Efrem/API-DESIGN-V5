@@ -16,7 +16,7 @@ import {
   getUserHabits,
   updateHabit,
 } from '../controllers/habitController.ts'
-
+import { createEntry } from '../controllers/entryController.ts'
 const router = Router()
 
 /* =========================================================
@@ -99,6 +99,11 @@ router.post(
   '/',
   validateBody(createHabitSchema),
   createHabit
+)
+
+router.post(
+  '/:habitId/entries',
+  createEntry
 )
 
 /* -------------------------
