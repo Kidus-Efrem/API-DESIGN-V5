@@ -1,115 +1,387 @@
 import { fileURLToPath } from 'url'
-import {db} from './connections.ts'
-import { users, habits, entries, tags, habitTags} from './schema.ts'
 
-const seed = async ()=>{
-	console.log('seed: Starting data base seed .......')
-	try {
-		console.log("clear existing data.....")
+import { db } from './connections.ts'
 
-		await db.delete(entries)
-		await db.delete(habitTags)
-		await db.delete(habits)
-		await db.delete(tags)
-		await db.delete(users)
+import {
+  users,
+  habits,
+  entries,
+  tags,
+  habitTags,
+  habitDailyStats,
+  habitReminders,
+} from './schema.ts'
 
+const seed = async () => {
+  console.log(
+    '🌱 Starting database seed...'
+  )
 
-		console.log('creating demo users .....')
+  try {
+    // =====================================================
+    // CLEAR DATABASE
+    // =====================================================
 
-		const [demoUser] = await db
+    console.log(
+      '🧹 Clearing existing data...'
+    )
+
+    await db.delete(entries)
+
+    await db.delete(habitDailyStats)
+
+    await db.delete(habitReminders)
+
+    await db.delete(habitTags)
+
+    await db.delete(habits)
+
+    await db.delete(tags)
+
+    await db.delete(users)
+
+    // =====================================================
+    // CREATE DEMO USER
+    // =====================================================
+
+    console.log(
+      '👤 Creating demo user...'
+    )
+
+    const [demoUser] = await db
       .insert(users)
       .values({
         email: 'demo@habittracker.com',
+
         username: 'demouser',
-        password: 'password',
+
+        password: 'demo123',
+
         firstName: 'Demo',
+
         lastName: 'User',
       })
       .returning()
 
-		console.log('Creating tags...')
+    // =====================================================
+    // CREATE TAGS
+    // =====================================================
 
-    	const [healthTag] = await db
+    console.log('🏷️ Creating tags...')
+
+    const [healthTag] = await db
       .insert(tags)
-      .values({ name: 'Health', color: '#10B981' })
+      .values({
+        userId: demoUser.id,
+
+        name: 'Health',
+
+        color: '#10B981',
+      })
       .returning()
 
-	  const [productivityTag] = await db
+    const [productivityTag] = await db
       .insert(tags)
-      .values({ name: 'Productivity', color: '#3B82F6' })
+      .values({
+        userId: demoUser.id,
+
+        name: 'Productivity',
+
+        color: '#3B82F6',
+      })
       .returning()
 
-	  // Step 4: Create habits with relationships
-    console.log('Creating demo habits...')
+    // =====================================================
+    // CREATE HABITS
+    // =====================================================
+
+    console.log(
+      '🎯 Creating habits...'
+    )
+
     const [exerciseHabit] = await db
       .insert(habits)
       .values({
         userId: demoUser.id,
+
         name: 'Exercise',
-        description: 'Daily workout routine',
+
+        description:
+          'Daily workout routine',
+
         frequency: 'daily',
+
+        frequencyInterval: 1,
+
         targetCount: 1,
+
+        currentStreak: 5,
+
+        longestStreak: 8,
       })
       .returning()
 
-	  await db.insert(habitTags).values([
-      { habitId: exerciseHabit.id, tagId: healthTag.id },
-    ])
-	 // Step 5: Create many-to-many relationships
+    const [studyHabit] = await db
+      .insert(habits)
+      .values({
+        userId: demoUser.id,
+
+        name: 'Study',
+
+        description:
+          'Study algorithms daily',
+
+        frequency: 'daily',
+
+        frequencyInterval: 1,
+
+        targetCount: 2,
+
+        currentStreak: 3,
+
+        longestStreak: 6,
+      })
+      .returning()
+
+    // =====================================================
+    // HABIT TAG RELATIONSHIPS
+    // =====================================================
+
+    console.log(
+      '🔗 Creating habit-tag relationships...'
+    )
+
     await db.insert(habitTags).values([
-      { habitId: exerciseHabit.id, tagId: healthTag.id },
+      {
+        habitId: exerciseHabit.id,
+        tagId: healthTag.id,
+      },
+
+      {
+        habitId: studyHabit.id,
+        tagId: productivityTag.id,
+      },
     ])
 
-	// Step 6: Create historical completion data
-    console.log('Adding completion entries...')
-    const today = new Date()
-    today.setHours(12, 0, 0, 0)
+    // =====================================================
+    // CREATE REMINDERS
+    // =====================================================
 
-	for (let i = 0; i < 7; i++) {
+    console.log(
+      '⏰ Creating reminders...'
+    )
+
+    await db.insert(habitReminders).values([
+      {
+        habitId: exerciseHabit.id,
+
+        timeMinutes: 7 * 60,
+
+        timeZone: 'Africa/Addis_Ababa',
+
+        daysOfWeek: [1, 2, 3, 4, 5],
+
+        frequency: 'daily',
+
+        frequencyInterval: 1,
+      },
+
+      {
+        habitId: studyHabit.id,
+
+        timeMinutes: 20 * 60,
+
+        timeZone: 'Africa/Addis_Ababa',
+
+        daysOfWeek: [1, 2, 3, 4, 5, 6],
+
+        frequency: 'daily',
+
+        frequencyInterval: 1,
+      },
+    ])
+
+    // =====================================================
+    // CREATE ENTRIES + DAILY STATS
+    // =====================================================
+
+    console.log(
+      '📈 Creating entries and stats...'
+    )
+
+    const today = new Date()
+
+    today.setHours(0, 0, 0, 0)
+
+    for (let i = 0; i < 7; i++) {
       const date = new Date(today)
-      date.setDate(date.getDate() - i)
+
+      date.setDate(
+        date.getDate() - i
+      )
+
+      // Exercise entry
       await db.insert(entries).values({
         habitId: exerciseHabit.id,
-        completion_date: date,
-        note: i === 0 ? 'Great workout today!' : null,
+
+        date,
+
+        completionDate: new Date(
+          date.getTime() +
+            1000 * 60 * 60 * 7
+        ),
+
+        count: 1,
+
+        note:
+          i === 0
+            ? 'Great workout today!'
+            : null,
       })
+
+      // Exercise daily stat
+      await db
+        .insert(habitDailyStats)
+        .values({
+          habitId: exerciseHabit.id,
+
+          date,
+
+          completionCount: 1,
+
+          targetCount: 1,
+        })
+
+      // Study habit entry
+      await db.insert(entries).values({
+        habitId: studyHabit.id,
+
+        date,
+
+        completionDate: new Date(
+          date.getTime() +
+            1000 * 60 * 60 * 20
+        ),
+
+        count: 2,
+
+        note:
+          i === 0
+            ? 'Solved graph problems'
+            : null,
+      })
+
+      // Study daily stat
+      await db
+        .insert(habitDailyStats)
+        .values({
+          habitId: studyHabit.id,
+
+          date,
+
+          completionCount: 2,
+
+          targetCount: 2,
+        })
     }
 
-	// Step 7: Test relational queries
-    console.log('\n🔍 Testing relational queries...')
-    const userWithHabits = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.email, 'demo@habittracker.com'),
-      with: {
-        habits: {
-          with: {
-            entries: true,
-            habitTags: {
-              with: { tag: true },
+    // =====================================================
+    // TEST RELATIONAL QUERIES
+    // =====================================================
+
+    console.log(
+      '🧪 Testing relational queries...'
+    )
+
+    const userWithHabits =
+      await db.query.users.findFirst({
+        where: (users, { eq }) =>
+          eq(
+            users.email,
+            'demo@habittracker.com'
+          ),
+
+        with: {
+          habits: {
+            with: {
+              entries: true,
+
+              dailyStats: true,
+
+              habitReminders: true,
+
+              habitTags: {
+                with: {
+                  tag: true,
+                },
+              },
             },
           },
+
+          tags: true,
         },
-      },
-    })
+      })
 
-	console.log('✅ Database seeded successfully!')
-    console.log('\n📊 Seed Summary:')
-    console.log(`- Demo user has ${userWithHabits?.habits.length || 0} habits`)
-    console.log('\n🔑 Login Credentials:')
-    console.log('Email: demo@habittracker.com')
-    console.log('Password: demo123')
+    // =====================================================
+    // SUMMARY
+    // =====================================================
 
-	}
-	catch(e){
+    console.log(
+      '\n✅ Database seeded successfully!'
+    )
 
-	}
+    console.log('\n📊 Seed Summary')
+
+    console.log(
+      `👤 User: ${demoUser.email}`
+    )
+
+    console.log(
+      `🎯 Habits: ${
+        userWithHabits?.habits.length || 0
+      }`
+    )
+
+    console.log(
+      `🏷️ Tags: ${
+        userWithHabits?.tags.length || 0
+      }`
+    )
+
+    console.log(
+      '\n🔑 Demo Login'
+    )
+
+    console.log(
+      'Email: demo@habittracker.com'
+    )
+
+    console.log(
+      'Password: demo123'
+    )
+  } catch (e) {
+    console.error(
+      '❌ Seed failed:',
+      e
+    )
+
+    throw e
+  }
 }
 
-// Run seed if this file is executed directly
-if (fileURLToPath(import.meta.url )=== process.argv[1]) {
+// =====================================================
+// RUN DIRECTLY
+// =====================================================
+
+if (
+  fileURLToPath(import.meta.url) ===
+  process.argv[1]
+) {
   seed()
     .then(() => process.exit(0))
     .catch((error) => {
       console.error(error)
+
       process.exit(1)
     })
 }

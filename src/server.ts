@@ -11,7 +11,6 @@ const app = express()
 
 app.use(express.json())
 
-// ================= HEALTH CHECK =================
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -20,7 +19,6 @@ app.get('/health', (req, res) => {
   })
 })
 
-// ================= ROUTES =================
 app.use('/api/auth', authRoutes)
 
 app.use('/api/users', userRoutes)
