@@ -6,6 +6,7 @@ import userRoutes from './routes/userRoutes.ts'
 import tagRoutes from './routes/tagRoutes.ts'
 import entryRoutes from './routes/entryRoutes.ts'
 import reminderRoutes from './routes/reminderRoutes.ts'
+import statsRoutes from './routes/statsRoutes.ts'
 
 const app = express()
 
@@ -30,5 +31,7 @@ app.use('/api/tags', tagRoutes)
 app.use('/api/entries', entryRoutes)
 
 app.use('/api/reminders', reminderRoutes)
+
+app.use('/api/habits', statsRoutes)
 
 export { app }
