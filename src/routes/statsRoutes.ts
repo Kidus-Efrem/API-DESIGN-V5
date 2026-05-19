@@ -5,6 +5,7 @@ import {
 } from '../middleware/auth.ts'
 
 import {
+	getHabitHeatmap,
   getHabitStats,
 } from '../controllers/statsController.ts'
 
@@ -17,4 +18,8 @@ router.get(
   getHabitStats
 )
 
+router.get(
+	'/:habitId/heatmap',
+	getHabitHeatmap
+)
 export default router
