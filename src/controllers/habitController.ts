@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm'
 
 import { AppError } from '../utils/AppError.ts'
+import { error } from 'console'
 
 // ================= CREATE HABIT =================
 export const createHabit = async (
@@ -282,5 +283,55 @@ export const deleteHabit = async (
     res.status(500).json({
       error: 'Failed to delete habit',
     })
+  }
+}
+export const getUserHabit = async(req:AuthenticatedRequest  , res: Response)=>{
+
+  try{
+    const {id }  = req.params
+
+    const userId = req.user!.id
+
+    const habit = await db.query.habits.findFirst({
+      where: and(
+        eq(habits.id, id)
+        ,eq(habits.userId, userId)
+      ),
+      with:{
+        habitTags:{
+          with:{
+            tag:true
+          }
+        },
+        reminders: true,
+        dailyStats: true,
+
+      }
+    })
+    if (!habit){
+      return res.status(404).json({
+        error: 'Habit not found'
+      })
+    }
+
+    const formattedHabit = {
+      ...habit,
+      tags:
+      habit.habitTags.map(
+        (ht) =>ht.tag
+      ),
+      habitTags:undefined,
+    }
+    return res.json({
+      habit:formattedHabit
+    })
+  }catch(e){
+    console.error(
+    'getHabitById error:',e)
+    return res.status(500).json({
+      error:
+      'failed to fetch habit'
+    })
+
   }
 }

@@ -13,6 +13,7 @@ import {
 import {
   createHabit,
   deleteHabit,
+  getUserHabit,
   getUserHabits,
   updateHabit,
 } from '../controllers/habitController.ts'
@@ -125,6 +126,12 @@ router.delete(
   '/:id',
   validateParams(habitIdParamSchema),
   deleteHabit
+)
+
+router.get(
+  '/:id',
+  validateParams(habitIdParamSchema),
+  getUserHabit
 )
 
 export default router
