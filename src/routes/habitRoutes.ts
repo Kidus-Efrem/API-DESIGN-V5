@@ -33,6 +33,8 @@ const getHabitsQuerySchema = z.object({
   tagId: z.uuid().optional(),
   active: z.enum(['true', 'false']).optional(),
   search: z.string().optional(),
+  limit: z.string().optional(),
+  page:z.string().optional()
 })
 /* =========================================================
    CREATE HABIT SCHEMA

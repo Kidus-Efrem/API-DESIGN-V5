@@ -117,7 +117,13 @@ export const getUserHabits = async (
       tagId,
       active,
       search,
+      page = '1',
+      limit = '10'
     } = req.query
+
+    const pageNumber = Number(page)
+    const limitNUmber = Number(limit)
+    const offset = (pageNumber - 1) * limitNUmber
 
     // =====================================
     // BUILD DYNAMIC CONDITIONS
@@ -156,12 +162,15 @@ export const getUserHabits = async (
     // =====================================
     // FETCH HABITS
     // =====================================
-
+    const totalHabits = await db.$count(habits, and(...conditions))
+    
     const userHabitsWithTags =
       await db.query.habits.findMany({
 
         where: and(...conditions),
 
+        limit:limitNUmber,
+        offset,
         with: {
           habitTags: {
             with: {
@@ -214,6 +223,10 @@ export const getUserHabits = async (
     // =====================================
 
     res.json({
+      page: pageNumber,
+      limit: limitNUmber,
+      total:totalHabits,
+      totalpages:Math.ceil(totalHabits/limitNUmber),
       habits: filteredHabits,
     })
 
