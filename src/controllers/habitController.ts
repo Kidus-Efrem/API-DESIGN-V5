@@ -1,4 +1,4 @@
-import type { Response } from 'express'
+import type { Response, NextFunction } from 'express'
 import type { AuthenticatedRequest } from '../middleware/auth.ts'
 
 import { db } from '../db/connections.ts'
@@ -163,7 +163,7 @@ export const getUserHabits = async (
     // FETCH HABITS
     // =====================================
     const totalHabits = await db.$count(habits, and(...conditions))
-    
+
     const userHabitsWithTags =
       await db.query.habits.findMany({
 
@@ -242,7 +242,8 @@ export const getUserHabits = async (
 // ================= UPDATE HABIT =================
 export const updateHabit = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const { id } = req.params
@@ -326,19 +327,8 @@ export const updateHabit = async (
       habit: result,
     })
   } catch (e) {
-    if (e instanceof AppError) {
-      return res.status(e.statusCode).json({
-        error: e.message,
-      })
-    }
-
-    console.error('update habit error:', e)
-
-    res.status(500).json({
-      error: 'Failed to update habit',
-    })
-  }
-}
+   next(e)
+}}
 
 // ================= DELETE HABIT =================
 export const deleteHabit = async (
@@ -380,7 +370,7 @@ export const deleteHabit = async (
     })
   }
 }
-export const getUserHabit = async(req:AuthenticatedRequest  , res: Response)=>{
+export const getUserHabit = async(req:AuthenticatedRequest  , res: Response, next: NextFunction)=>{
 
   try{
     const {id }  = req.params
@@ -421,12 +411,6 @@ export const getUserHabit = async(req:AuthenticatedRequest  , res: Response)=>{
       habit:formattedHabit
     })
   }catch(e){
-    console.error(
-    'getHabitById error:',e)
-    return res.status(500).json({
-      error:
-      'failed to fetch habit'
-    })
-
+    next(e)
   }
 }
