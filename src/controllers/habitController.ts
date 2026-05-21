@@ -14,6 +14,8 @@ import {
   and,
   desc,
   inArray,
+  ilike,
+
 } from 'drizzle-orm'
 
 import { AppError } from '../utils/AppError.ts'
@@ -106,9 +108,59 @@ export const getUserHabits = async (
   res: Response
 ) => {
   try {
+
+    // =====================================
+    // QUERY PARAMETERS
+    // =====================================
+
+    const {
+      tagId,
+      active,
+      search,
+    } = req.query
+
+    // =====================================
+    // BUILD DYNAMIC CONDITIONS
+    // =====================================
+
+    const conditions = [
+      eq(habits.userId, req.user!.id)
+    ]
+
+    // Filter by active status
+    // /api/habits?active=true
+
+    if (active !== undefined) {
+
+      conditions.push(
+        eq(
+          habits.isActive,
+          active === 'true'
+        )
+      )
+    }
+
+    // Search by habit name
+    // /api/habits?search=read
+
+    if (search) {
+
+      conditions.push(
+        ilike(
+          habits.name,
+          `%${search}%`
+        )
+      )
+    }
+
+    // =====================================
+    // FETCH HABITS
+    // =====================================
+
     const userHabitsWithTags =
       await db.query.habits.findMany({
-        where: eq(habits.userId, req.user!.id),
+
+        where: and(...conditions),
 
         with: {
           habitTags: {
@@ -121,8 +173,13 @@ export const getUserHabits = async (
         orderBy: [desc(habits.createdAt)],
       })
 
+    // =====================================
+    // TRANSFORM RESPONSE
+    // =====================================
+
     const habitsWithTags =
       userHabitsWithTags.map((habit) => ({
+
         ...habit,
 
         tags: habit.habitTags.map(
@@ -132,10 +189,36 @@ export const getUserHabits = async (
         habitTags: undefined,
       }))
 
+    // =====================================
+    // OPTIONAL TAG FILTER
+    // =====================================
+
+    let filteredHabits = habitsWithTags
+
+    // /api/habits?tagId=uuid
+
+    if (tagId) {
+
+      filteredHabits =
+        habitsWithTags.filter(
+          (habit) =>
+
+            habit.tags.some(
+              (tag) => tag.id === tagId
+            )
+        )
+    }
+
+    // =====================================
+    // RESPONSE
+    // =====================================
+
     res.json({
-      habits: habitsWithTags,
+      habits: filteredHabits,
     })
+
   } catch (e) {
+
     console.error('get habits error:', e)
 
     res.status(500).json({
@@ -143,7 +226,6 @@ export const getUserHabits = async (
     })
   }
 }
-
 // ================= UPDATE HABIT =================
 export const updateHabit = async (
   req: AuthenticatedRequest,
