@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   validateBody,
   validateParams,
+  validateQuery
 } from '../middleware/validation.ts'
 
 import {
@@ -13,10 +14,11 @@ import {
 import {
   createHabit,
   deleteHabit,
+  getUserHabit,
   getUserHabits,
   updateHabit,
 } from '../controllers/habitController.ts'
-
+import { createEntry } from '../controllers/entryController.ts'
 const router = Router()
 
 /* =========================================================
@@ -27,6 +29,13 @@ const habitIdParamSchema = z.object({
   id: z.uuid(),
 })
 
+const getHabitsQuerySchema = z.object({
+  tagId: z.uuid().optional(),
+  active: z.enum(['true', 'false']).optional(),
+  search: z.string().optional(),
+  limit: z.string().optional(),
+  page:z.string().optional()
+})
 /* =========================================================
    CREATE HABIT SCHEMA
 ========================================================= */
@@ -100,6 +109,15 @@ router.post(
   validateBody(createHabitSchema),
   createHabit
 )
+router.get('/',
+  validateQuery(getHabitsQuerySchema),
+  getUserHabits
+)
+
+router.post(
+  '/:habitId/entries',
+  createEntry
+)
 
 /* -------------------------
    UPDATE HABIT
@@ -120,6 +138,12 @@ router.delete(
   '/:id',
   validateParams(habitIdParamSchema),
   deleteHabit
+)
+
+router.get(
+  '/:id',
+  validateParams(habitIdParamSchema),
+  getUserHabit
 )
 
 export default router

@@ -12,7 +12,7 @@ import {
 import {
   and,
   eq,
-  sql,
+  gte,
 } from 'drizzle-orm'
 
 import { AppError } from '../utils/AppError.ts'
@@ -22,6 +22,7 @@ export const createEntry = async (
   res: Response
 ) => {
   try {
+
     const { habitId } = req.params
 
     const incrementBy =
@@ -43,12 +44,13 @@ export const createEntry = async (
         // 1. Verify habit ownership
         // ==============================
 
-        const habit = await tx.query.habits.findFirst({
-          where: and(
-            eq(habits.id, habitId),
-            eq(habits.userId, userId)
-          )
-        })
+        const habit =
+          await tx.query.habits.findFirst({
+            where: and(
+              eq(habits.id, habitId),
+              eq(habits.userId, userId)
+            )
+          })
 
         if (!habit) {
           throw new AppError(
@@ -78,6 +80,7 @@ export const createEntry = async (
           })
 
         let updatedCount = incrementBy
+
         let previousCount = 0
 
         // ==============================
@@ -86,17 +89,25 @@ export const createEntry = async (
 
         if (existingEntry) {
 
-          previousCount = existingEntry.count
+          previousCount =
+            existingEntry.count
 
           updatedCount =
-            existingEntry.count + incrementBy
+            existingEntry.count +
+            incrementBy
 
           await tx
             .update(entries)
             .set({
-              count: updatedCount
+              count: updatedCount,
+              updatedAt: new Date(),
             })
-            .where(eq(entries.id, existingEntry.id))
+            .where(
+              eq(
+                entries.id,
+                existingEntry.id
+              )
+            )
 
         } else {
 
@@ -105,10 +116,10 @@ export const createEntry = async (
             .values({
               habitId,
               date: today,
-			  completionDate: new Date(),
+              completionDate:
+                new Date(),
               count: incrementBy
             })
-
         }
 
         // ==============================
@@ -116,30 +127,45 @@ export const createEntry = async (
         // ==============================
 
         const wasCompletedBefore =
-          previousCount >= habit.targetCount
+          previousCount >=
+          habit.targetCount
 
         const isCompletedNow =
-          updatedCount >= habit.targetCount
+          updatedCount >=
+          habit.targetCount
 
         // ==============================
         // 6. Upsert daily stats
         // ==============================
 
         const existingDailyStat =
-          await tx.query.habitDailyStats.findFirst({
-            where: and(
-              eq(habitDailyStats.habitId, habitId),
-              eq(habitDailyStats.date, today)
-            )
-          })
+          await tx
+            .query
+            .habitDailyStats
+            .findFirst({
+              where: and(
+                eq(
+                  habitDailyStats.habitId,
+                  habitId
+                ),
+
+                eq(
+                  habitDailyStats.date,
+                  today
+                )
+              )
+            })
 
         if (existingDailyStat) {
 
           await tx
             .update(habitDailyStats)
             .set({
-              completionCount: updatedCount,
-              updatedAt: new Date()
+              completionCount:
+                updatedCount,
+
+              updatedAt:
+                new Date()
             })
             .where(
               eq(
@@ -155,10 +181,13 @@ export const createEntry = async (
             .values({
               habitId,
               date: today,
-              completionCount: updatedCount,
-              targetCount: habit.targetCount
-            })
 
+              completionCount:
+                updatedCount,
+
+              targetCount:
+                habit.targetCount
+            })
         }
 
         // ==============================
@@ -171,8 +200,102 @@ export const createEntry = async (
           isCompletedNow
         ) {
 
-          const newCurrentStreak =
-            habit.currentStreak + 1
+          // --------------------------------
+          // Yesterday
+          // --------------------------------
+
+          const yesterday =
+            new Date(today)
+
+          yesterday.setDate(
+            yesterday.getDate() - 1
+          )
+
+          yesterday.setHours(
+            0,
+            0,
+            0,
+            0
+          )
+
+          // --------------------------------
+          // Find latest completed day
+          // --------------------------------
+
+          const previousCompletedDay =
+            await tx
+              .query
+              .habitDailyStats
+              .findFirst({
+
+                where: and(
+                  eq(
+                    habitDailyStats.habitId,
+                    habitId
+                  ),
+
+                  gte(
+                    habitDailyStats.completionCount,
+                    habit.targetCount
+                  )
+                ),
+
+                orderBy: (
+                  stats,
+                  { desc }
+                ) => [
+                  desc(stats.date)
+                ],
+              })
+
+          let newCurrentStreak = 1
+
+          // --------------------------------
+          // Continue streak ONLY if
+          // yesterday was completed
+          // --------------------------------
+
+          if (
+            previousCompletedDay &&
+            previousCompletedDay.date
+          ) {
+
+            const previousDate =
+              new Date(
+                previousCompletedDay.date
+              )
+
+            previousDate.setHours(
+              0,
+              0,
+              0,
+              0
+            )
+
+            // Ignore today itself
+            if (
+              previousDate.getTime() !==
+              today.getTime()
+            ) {
+
+              // Consecutive day
+              if (
+                previousDate.getTime() ===
+                yesterday.getTime()
+              ) {
+
+                newCurrentStreak =
+                  habit.currentStreak + 1
+              }
+
+              // Otherwise:
+              // streak resets to 1
+            }
+          }
+
+          // --------------------------------
+          // Longest streak
+          // --------------------------------
 
           const newLongestStreak =
             Math.max(
@@ -180,18 +303,27 @@ export const createEntry = async (
               habit.longestStreak
             )
 
+          // --------------------------------
+          // Update habit streak
+          // --------------------------------
+
           await tx
             .update(habits)
             .set({
+
               currentStreak:
                 newCurrentStreak,
 
               longestStreak:
                 newLongestStreak,
 
-              updatedAt: new Date()
+              updatedAt:
+                new Date()
+
             })
-            .where(eq(habits.id, habitId))
+            .where(
+              eq(habits.id, habitId)
+            )
         }
 
         // ==============================
@@ -200,13 +332,16 @@ export const createEntry = async (
 
         return {
           count: updatedCount,
-          target: habit.targetCount,
-          completed: isCompletedNow
+          target:
+            habit.targetCount,
+
+          completed:
+            isCompletedNow
         }
       }
     )
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Entry created',
       progress: result
     })
@@ -214,15 +349,22 @@ export const createEntry = async (
   } catch (e) {
 
     if (e instanceof AppError) {
-      return res.status(e.statusCode).json({
+
+      return res.status(
+        e.statusCode
+      ).json({
         error: e.message
       })
     }
 
-    console.error('create entry error:', e)
+    console.error(
+      'create entry error:',
+      e
+    )
 
-    res.status(500).json({
-      error: 'Failed to create entry'
+    return res.status(500).json({
+      error:
+        'Failed to create entry'
     })
   }
 }

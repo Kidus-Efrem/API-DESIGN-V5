@@ -1,4 +1,4 @@
-import type { Response } from 'express'
+import type { Response, NextFunction } from 'express'
 import type { AuthenticatedRequest } from '../middleware/auth.ts'
 
 import { db } from '../db/connections.ts'
@@ -14,9 +14,12 @@ import {
   and,
   desc,
   inArray,
+  ilike,
+
 } from 'drizzle-orm'
 
 import { AppError } from '../utils/AppError.ts'
+import { error } from 'console'
 
 // ================= CREATE HABIT =================
 export const createHabit = async (
@@ -105,10 +108,69 @@ export const getUserHabits = async (
   res: Response
 ) => {
   try {
+
+    // =====================================
+    // QUERY PARAMETERS
+    // =====================================
+
+    const {
+      tagId,
+      active,
+      search,
+      page = '1',
+      limit = '10'
+    } = req.query
+
+    const pageNumber = Number(page)
+    const limitNUmber = Number(limit)
+    const offset = (pageNumber - 1) * limitNUmber
+
+    // =====================================
+    // BUILD DYNAMIC CONDITIONS
+    // =====================================
+
+    const conditions = [
+      eq(habits.userId, req.user!.id)
+    ]
+
+    // Filter by active status
+    // /api/habits?active=true
+
+    if (active !== undefined) {
+
+      conditions.push(
+        eq(
+          habits.isActive,
+          active === 'true'
+        )
+      )
+    }
+
+    // Search by habit name
+    // /api/habits?search=read
+
+    if (search) {
+
+      conditions.push(
+        ilike(
+          habits.name,
+          `%${search}%`
+        )
+      )
+    }
+
+    // =====================================
+    // FETCH HABITS
+    // =====================================
+    const totalHabits = await db.$count(habits, and(...conditions))
+
     const userHabitsWithTags =
       await db.query.habits.findMany({
-        where: eq(habits.userId, req.user!.id),
 
+        where: and(...conditions),
+
+        limit:limitNUmber,
+        offset,
         with: {
           habitTags: {
             with: {
@@ -120,8 +182,13 @@ export const getUserHabits = async (
         orderBy: [desc(habits.createdAt)],
       })
 
+    // =====================================
+    // TRANSFORM RESPONSE
+    // =====================================
+
     const habitsWithTags =
       userHabitsWithTags.map((habit) => ({
+
         ...habit,
 
         tags: habit.habitTags.map(
@@ -131,10 +198,40 @@ export const getUserHabits = async (
         habitTags: undefined,
       }))
 
+    // =====================================
+    // OPTIONAL TAG FILTER
+    // =====================================
+
+    let filteredHabits = habitsWithTags
+
+    // /api/habits?tagId=uuid
+
+    if (tagId) {
+
+      filteredHabits =
+        habitsWithTags.filter(
+          (habit) =>
+
+            habit.tags.some(
+              (tag) => tag.id === tagId
+            )
+        )
+    }
+
+    // =====================================
+    // RESPONSE
+    // =====================================
+
     res.json({
-      habits: habitsWithTags,
+      page: pageNumber,
+      limit: limitNUmber,
+      total:totalHabits,
+      totalpages:Math.ceil(totalHabits/limitNUmber),
+      habits: filteredHabits,
     })
+
   } catch (e) {
+
     console.error('get habits error:', e)
 
     res.status(500).json({
@@ -142,11 +239,11 @@ export const getUserHabits = async (
     })
   }
 }
-
 // ================= UPDATE HABIT =================
 export const updateHabit = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const { id } = req.params
@@ -230,19 +327,8 @@ export const updateHabit = async (
       habit: result,
     })
   } catch (e) {
-    if (e instanceof AppError) {
-      return res.status(e.statusCode).json({
-        error: e.message,
-      })
-    }
-
-    console.error('update habit error:', e)
-
-    res.status(500).json({
-      error: 'Failed to update habit',
-    })
-  }
-}
+   next(e)
+}}
 
 // ================= DELETE HABIT =================
 export const deleteHabit = async (
@@ -282,5 +368,55 @@ export const deleteHabit = async (
     res.status(500).json({
       error: 'Failed to delete habit',
     })
+  }
+}
+export const getUserHabit = async(req:AuthenticatedRequest  , res: Response,)=>{
+
+  try{
+    const {id }  = req.params
+
+    const userId = req.user!.id
+
+    const habit = await db.query.habits.findFirst({
+      where: and(
+        eq(habits.id, id)
+        ,eq(habits.userId, userId)
+      ),
+      with:{
+        habitTags:{
+          with:{
+            tag:true
+          }
+        },
+        reminders: true,
+        dailyStats: true,
+
+      }
+    })
+    if (!habit){
+      return res.status(404).json({
+        error: 'Habit not found'
+      })
+    }
+
+    const formattedHabit = {
+      ...habit,
+      tags:
+      habit.habitTags.map(
+        (ht) =>ht.tag
+      ),
+      habitTags:undefined,
+    }
+    return res.json({
+      habit:formattedHabit
+    })
+  }catch(e){
+    console.error(
+    'getHabitById error:',e)
+    return res.status(500).json({
+      error:
+      'failed to fetch habit'
+    })
+
   }
 }
